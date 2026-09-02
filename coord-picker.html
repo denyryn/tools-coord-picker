@@ -286,8 +286,8 @@
 </div>
 
 <script>
-const W = 2480; // reference canvas width (px)
-const H = 3508; // reference canvas height (px)
+let W = 2480; // reference canvas width (px) — set from uploaded image
+let H = 3508; // reference canvas height (px) — set from uploaded image
 
 // ── State ──
 let fields = [];
@@ -442,6 +442,9 @@ function endDrag() {
 function imageLoaded() {
   imgNaturalW = certImage.naturalWidth;
   imgNaturalH = certImage.naturalHeight;
+  // Use actual image dimensions as reference canvas
+  W = imgNaturalW;
+  H = imgNaturalH;
   imgInfo.textContent = `Original: ${imgNaturalW} × ${imgNaturalH}  •  Ref canvas: ${W} × ${H}`;
   renderMarkers();
 }
@@ -488,7 +491,7 @@ function renderFieldList() {
       </div>
       <div class="mock-text ${f.mockText ? '' : 'empty'}" data-mock="${f.id}">${escHtml(f.mockText || 'add mock text...')}</div>
       <div class="size-controls">
-        <label>W: <input type="number" data-w="${f.id}" value="${f.textWidth}" min="20" max="2480"></label>
+        <label>W: <input type="number" data-w="${f.id}" value="${f.textWidth}" min="20" max="${W}"></label>
         <label>FS: <input type="number" data-fs="${f.id}" value="${f.fontSize}" min="8" max="200"></label>
       </div>
       <div class="align-controls">
