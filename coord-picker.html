@@ -51,6 +51,44 @@
   .field-item .name { font-size: 0.8rem; font-weight: 600; color: #e0e0e0; }
   .field-item .coord { font-size: 0.7rem; color: #c9a84c; font-family: monospace; }
   .field-item .desc { font-size: 0.7rem; color: #666; margin-top: 2px; }
+  .field-item .mock-text {
+    font-size: 0.7rem; color: #c9a84c; margin-top: 4px;
+    font-style: italic; opacity: 0.8;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .field-item .mock-text::before {
+    content: '💬'; font-size: 0.65rem; font-style: normal;
+  }
+  .field-item .mock-text.empty { color: #444; font-style: italic; }
+  .field-item .mock-text.empty::before { content: '➕'; }
+  .field-item .size-controls {
+    display: flex; gap: 6px; margin-top: 6px; align-items: center;
+  }
+  .field-item .size-controls label {
+    font-size: 0.65rem; color: #555; display: flex; align-items: center; gap: 3px;
+  }
+  .field-item .size-controls input[type="number"] {
+    width: 55px; background: #1a1a1a; border: 1px solid #333; border-radius: 4px;
+    padding: 3px 5px; font-size: 0.65rem; color: #c9a84c; font-family: monospace;
+  }
+  .field-item .size-controls input[type="number"]:focus {
+    border-color: #c9a84c; outline: none;
+  }
+  .field-item .align-controls {
+    display: flex; gap: 4px; margin-top: 6px; align-items: center;
+  }
+  .field-item .align-controls label {
+    font-size: 0.65rem; color: #555; margin-right: 4px;
+  }
+  .field-item .align-controls button {
+    background: #1a1a1a; border: 1px solid #333; border-radius: 4px;
+    padding: 3px 8px; font-size: 0.65rem; color: #888; cursor: pointer;
+    transition: all .15s;
+  }
+  .field-item .align-controls button:hover { border-color: #555; }
+  .field-item .align-controls button.active {
+    background: rgba(201,168,76,0.15); border-color: #c9a84c; color: #c9a84c;
+  }
   .field-item .remove {
     position: absolute; top: 4px; right: 6px;
     background: none; border: none; color: #555; cursor: pointer;
@@ -312,8 +350,41 @@ function renderMarkers() {
 
     const label = document.createElement('div');
     label.className = 'marker-label';
-    label.textContent = `${f.name} (${f.x}, ${f.y})`;
+    const fsLabel = f.fontSize ? ` (${f.fontSize}px)` : '';
+    label.textContent = `${f.name}${fsLabel} (${f.x}, ${f.y})`;
     el.appendChild(label);
+
+    // text area box (positioned based on alignment)
+    if (f.textWidth || f.textHeight) {
+      const p2 = refToPx(f.textWidth, f.textHeight);
+      let boxX = 0, boxY = 0;
+      if (f.align === 'center') {
+        boxX = -p2.x / 2;
+        boxY = -p2.y / 2;
+      } else if (f.align === 'right') {
+        boxX = -p2.x;
+        boxY = -p2.y / 2;
+      } else { // left
+        boxX = 0;
+        boxY = -p2.y / 2;
+      }
+      const box = document.createElement('div');
+      box.style.cssText = `position:absolute;left:${boxX}px;top:${boxY}px;width:${p2.x}px;height:${p2.y}px;border:1px dashed rgba(201,168,76,0.35);border-radius:4px;pointer-events:none;overflow:hidden;`;
+      el.appendChild(box);
+
+      // render mock text inside box
+      if (f.mockText) {
+        const fsScale = (f.fontSize / W) * certImage.getBoundingClientRect().width;
+        const txt = document.createElement('div');
+        txt.textContent = f.mockText;
+        const pad = 4;
+        txt.style.cssText = `position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;padding:${pad}px;font-size:${fsScale}px;line-height:1.2;color:rgba(201,168,76,0.7);font-family:'Inter',sans-serif;box-sizing:border-box;overflow:hidden;`;
+        if (f.align === 'center') txt.style.justifyContent = 'center';
+        else if (f.align === 'right') txt.style.justifyContent = 'right';
+        else txt.style.justifyContent = 'left';
+        box.appendChild(txt);
+      }
+    }
 
     el.addEventListener('mousedown', e => {
       e.stopPropagation();
@@ -357,7 +428,8 @@ function onDrag(e) {
     const p = refToPx(nx, ny);
     marker.style.left = p.x + 'px';
     marker.style.top = p.y + 'px';
-    marker.querySelector('.marker-label').textContent = `${f.name} (${f.x}, ${f.y})`;
+    const fsLabel = f.fontSize ? ` (${f.fontSize}px)` : '';
+    marker.querySelector('.marker-label').textContent = `${f.name}${fsLabel} (${f.x}, ${f.y})`;
   }
 
   renderFieldList(); // keep sidebar coords current
@@ -379,9 +451,9 @@ function imageLoaded() {
 }
 
 // ── Add field ──
-function addField(name, x, y) {
+function addField(name, x, y, mockText, textWidth, textHeight, fontSize, align) {
   const id = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-  fields.push({ id, name, x, y });
+  fields.push({ id, name, x, y, mockText: mockText || '', textWidth: textWidth || 400, textHeight: textHeight || 60, fontSize: fontSize || 32, align: align || 'left' });
   activeId = id;
   renderFieldList();
   renderMarkers();
@@ -418,6 +490,18 @@ function renderFieldList() {
         <span class="name">${escHtml(f.name)}</span>
         <span class="coord">${f.x}, ${f.y}</span>
       </div>
+      <div class="mock-text ${f.mockText ? '' : 'empty'}" data-mock="${f.id}">${escHtml(f.mockText || 'add mock text...')}</div>
+      <div class="size-controls">
+        <label>W: <input type="number" data-w="${f.id}" value="${f.textWidth}" min="20" max="2480"></label>
+        <label>H: <input type="number" data-h="${f.id}" value="${f.textHeight}" min="10" max="3508"></label>
+        <label>FS: <input type="number" data-fs="${f.id}" value="${f.fontSize}" min="8" max="200"></label>
+      </div>
+      <div class="align-controls">
+        <label>Align:</label>
+        <button class="${f.align === 'left' ? 'active' : ''}" data-align="left" data-id="${f.id}">L</button>
+        <button class="${f.align === 'center' ? 'active' : ''}" data-align="center" data-id="${f.id}">C</button>
+        <button class="${f.align === 'right' ? 'active' : ''}" data-align="right" data-id="${f.id}">R</button>
+      </div>
       <div class="desc">Ref canvas: ${W}×${H}</div>
     </div>
   `).join('');
@@ -426,9 +510,55 @@ function renderFieldList() {
   fieldList.querySelectorAll('.field-item').forEach(el => {
     el.addEventListener('click', e => {
       if (e.target.classList.contains('remove')) return;
+      if (e.target.classList.contains('size-controls') || e.target.closest('.size-controls')) return;
+      if (e.target.dataset.mock) return; // mock text handled separately
+      if (e.target.dataset.align) return; // align handled separately
       activeId = el.dataset.id;
       renderFieldList();
       renderMarkers();
+    });
+  });
+  // mock text click to edit
+  fieldList.querySelectorAll('.mock-text').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.dataset.mock;
+      const f = fields.find(f => f.id === id);
+      if (!f) return;
+      const val = prompt('Mock text for this field:', f.mockText || '');
+      if (val === null) return;
+      f.mockText = val;
+      renderFieldList();
+      renderMarkers();
+      updateExport();
+    });
+  });
+  // size controls
+  fieldList.querySelectorAll('.size-controls input').forEach(el => {
+    el.addEventListener('click', e => e.stopPropagation());
+    el.addEventListener('change', e => {
+      const id = el.dataset.w ? el.dataset.w : el.dataset.h ? el.dataset.h : el.dataset.fs;
+      const f = fields.find(f => f.id === id);
+      if (!f) return;
+      const val = parseInt(e.target.value, 10);
+      if (el.dataset.w) f.textWidth = clamp(isNaN(val) ? 400 : val, 20, W);
+      if (el.dataset.h) f.textHeight = clamp(isNaN(val) ? 60 : val, 10, H);
+      if (el.dataset.fs) f.fontSize = clamp(isNaN(val) ? 32 : val, 8, 200);
+      renderMarkers();
+      updateExport();
+    });
+  });
+  // align controls
+  fieldList.querySelectorAll('.align-controls button').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.dataset.id;
+      const f = fields.find(f => f.id === id);
+      if (!f) return;
+      f.align = el.dataset.align;
+      renderFieldList();
+      renderMarkers();
+      updateExport();
     });
   });
   fieldList.querySelectorAll('.remove').forEach(el => {
@@ -453,7 +583,16 @@ function updateExport() {
   }
   const data = {
     refCanvas: { width: W, height: H },
-    fields: fields.map(f => ({ name: f.name, x: f.x, y: f.y })),
+    fields: fields.map(f => ({
+      name: f.name,
+      x: f.x,
+      y: f.y,
+      mockText: f.mockText || '',
+      textWidth: f.textWidth || 400,
+      textHeight: f.textHeight || 60,
+      fontSize: f.fontSize || 32,
+      align: f.align || 'left',
+    })),
   };
   exportArea.textContent = JSON.stringify(data, null, 2);
 }
@@ -492,7 +631,15 @@ addFieldBtn.addEventListener('click', () => {
   if (isNaN(x)) x = Math.round(W/2);
   let y = parseInt(prompt('Y coordinate (0–' + H + '):'), 10);
   if (isNaN(y)) y = Math.round(H/2);
-  addField(name, clamp(x,0,W), clamp(y,0,H));
+  const mockText = prompt('Mock text (optional):', '') || '';
+  let tw = parseInt(prompt('Text width (px, 20–' + W + '):', '400'), 10);
+  if (isNaN(tw)) tw = 400;
+  let th = parseInt(prompt('Text height (px, 10–' + H + '):', '60'), 10);
+  if (isNaN(th)) th = 60;
+  let fs = parseInt(prompt('Font size (px, 8–200):', '32'), 10);
+  if (isNaN(fs)) fs = 32;
+  const align = prompt('Text alignment (left/center/right):', 'left') || 'left';
+  addField(name, clamp(x,0,W), clamp(y,0,H), mockText, clamp(tw,20,W), clamp(th,10,H), clamp(fs,8,200), ['left','center','right'].includes(align) ? align : 'left');
 });
 
 // ── Click on image ──
@@ -506,7 +653,15 @@ certImage.addEventListener('click', e => {
 
   const name = prompt('Field name for this location (e.g. "Recipient Name"):', 'Field_' + (fields.length+1));
   if (!name) return;
-  addField(name, refX, refY);
+  const mockText = prompt('Mock text (optional):', '') || '';
+  let tw = parseInt(prompt('Text width (px, 20–' + W + '):', '400'), 10);
+  if (isNaN(tw)) tw = 400;
+  let th = parseInt(prompt('Text height (px, 10–' + H + '):', '60'), 10);
+  if (isNaN(th)) th = 60;
+  let fs = parseInt(prompt('Font size (px, 8–200):', '32'), 10);
+  if (isNaN(fs)) fs = 32;
+  const align = prompt('Text alignment (left/center/right):', 'left') || 'left';
+  addField(name, refX, refY, mockText, clamp(tw,20,W), clamp(th,10,H), clamp(fs,8,200), ['left','center','right'].includes(align) ? align : 'left');
 });
 
 // ── Mouse move: crosshair + coord display ──
