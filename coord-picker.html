@@ -584,14 +584,12 @@ function updateExport() {
   const data = {
     refCanvas: { width: W, height: H },
     fields: fields.map(f => ({
-      name: f.name,
       x: f.x,
       y: f.y,
-      mockText: f.mockText || '',
-      textWidth: f.textWidth || 400,
-      textHeight: f.textHeight || 60,
-      fontSize: f.fontSize || 32,
+      maxW: f.textWidth || 400,
       align: f.align || 'left',
+      size: f.fontSize || 32,
+      lineHeight: Math.round(((f.textHeight || 60) / (f.fontSize || 32)) * 100) / 100,
     })),
   };
   exportArea.textContent = JSON.stringify(data, null, 2);
