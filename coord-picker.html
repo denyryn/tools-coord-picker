@@ -354,22 +354,19 @@ function renderMarkers() {
     label.textContent = `${f.name}${fsLabel} (${f.x}, ${f.y})`;
     el.appendChild(label);
 
-    // text area box (positioned based on alignment)
-    if (f.textWidth || f.textHeight) {
-      const p2 = refToPx(f.textWidth, f.textHeight);
-      let boxX = 0, boxY = 0;
+    // text area box (width only, no height constraint)
+    if (f.textWidth) {
+      const displayW = (f.textWidth / W) * certImage.getBoundingClientRect().width;
+      let boxX = 0;
       if (f.align === 'center') {
-        boxX = -p2.x / 2;
-        boxY = -p2.y / 2;
+        boxX = -displayW / 2;
       } else if (f.align === 'right') {
-        boxX = -p2.x;
-        boxY = -p2.y / 2;
+        boxX = -displayW;
       } else { // left
         boxX = 0;
-        boxY = -p2.y / 2;
       }
       const box = document.createElement('div');
-      box.style.cssText = `position:absolute;left:${boxX}px;top:${boxY}px;width:${p2.x}px;height:${p2.y}px;border:1px dashed rgba(201,168,76,0.35);border-radius:4px;pointer-events:none;overflow:hidden;`;
+      box.style.cssText = `position:absolute;left:${boxX}px;top:-2px;width:${displayW}px;min-height:1px;border:1px dashed rgba(201,168,76,0.35);border-radius:4px;pointer-events:none;`;
       el.appendChild(box);
 
       // render mock text inside box
@@ -377,11 +374,10 @@ function renderMarkers() {
         const fsScale = (f.fontSize / W) * certImage.getBoundingClientRect().width;
         const txt = document.createElement('div');
         txt.textContent = f.mockText;
-        const pad = 4;
-        txt.style.cssText = `position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;padding:${pad}px;font-size:${fsScale}px;line-height:1.2;color:rgba(201,168,76,0.7);font-family:'Inter',sans-serif;box-sizing:border-box;overflow:hidden;`;
-        if (f.align === 'center') txt.style.justifyContent = 'center';
-        else if (f.align === 'right') txt.style.justifyContent = 'right';
-        else txt.style.justifyContent = 'left';
+        txt.style.cssText = `position:relative;width:auto;min-width:100%;padding:4px;font-size:${fsScale}px;line-height:1.2;color:rgba(201,168,76,0.85);font-family:'Inter',sans-serif;word-wrap:break-word;white-space:pre-wrap;`;
+        if (f.align === 'center') txt.style.textAlign = 'center';
+        else if (f.align === 'right') txt.style.textAlign = 'right';
+        else txt.style.textAlign = 'left';
         box.appendChild(txt);
       }
     }
@@ -451,9 +447,9 @@ function imageLoaded() {
 }
 
 // ── Add field ──
-function addField(name, x, y, mockText, textWidth, textHeight, fontSize, align) {
+function addField(name, x, y, mockText, textWidth, fontSize, align) {
   const id = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-  fields.push({ id, name, x, y, mockText: mockText || '', textWidth: textWidth || 400, textHeight: textHeight || 60, fontSize: fontSize || 32, align: align || 'left' });
+  fields.push({ id, name, x, y, mockText: mockText || '', textWidth: textWidth || 400, fontSize: fontSize || 32, align: align || 'left' });
   activeId = id;
   renderFieldList();
   renderMarkers();
@@ -493,7 +489,6 @@ function renderFieldList() {
       <div class="mock-text ${f.mockText ? '' : 'empty'}" data-mock="${f.id}">${escHtml(f.mockText || 'add mock text...')}</div>
       <div class="size-controls">
         <label>W: <input type="number" data-w="${f.id}" value="${f.textWidth}" min="20" max="2480"></label>
-        <label>H: <input type="number" data-h="${f.id}" value="${f.textHeight}" min="10" max="3508"></label>
         <label>FS: <input type="number" data-fs="${f.id}" value="${f.fontSize}" min="8" max="200"></label>
       </div>
       <div class="align-controls">
@@ -537,12 +532,11 @@ function renderFieldList() {
   fieldList.querySelectorAll('.size-controls input').forEach(el => {
     el.addEventListener('click', e => e.stopPropagation());
     el.addEventListener('change', e => {
-      const id = el.dataset.w ? el.dataset.w : el.dataset.h ? el.dataset.h : el.dataset.fs;
+      const id = el.dataset.w ? el.dataset.w : el.dataset.fs;
       const f = fields.find(f => f.id === id);
       if (!f) return;
       const val = parseInt(e.target.value, 10);
       if (el.dataset.w) f.textWidth = clamp(isNaN(val) ? 400 : val, 20, W);
-      if (el.dataset.h) f.textHeight = clamp(isNaN(val) ? 60 : val, 10, H);
       if (el.dataset.fs) f.fontSize = clamp(isNaN(val) ? 32 : val, 8, 200);
       renderMarkers();
       updateExport();
@@ -589,7 +583,6 @@ function updateExport() {
       maxW: f.textWidth || 400,
       align: f.align || 'left',
       size: f.fontSize || 32,
-      lineHeight: Math.round(((f.textHeight || 60) / (f.fontSize || 32)) * 100) / 100,
     })),
   };
   exportArea.textContent = JSON.stringify(data, null, 2);
@@ -632,12 +625,10 @@ addFieldBtn.addEventListener('click', () => {
   const mockText = prompt('Mock text (optional):', '') || '';
   let tw = parseInt(prompt('Text width (px, 20–' + W + '):', '400'), 10);
   if (isNaN(tw)) tw = 400;
-  let th = parseInt(prompt('Text height (px, 10–' + H + '):', '60'), 10);
-  if (isNaN(th)) th = 60;
   let fs = parseInt(prompt('Font size (px, 8–200):', '32'), 10);
   if (isNaN(fs)) fs = 32;
   const align = prompt('Text alignment (left/center/right):', 'left') || 'left';
-  addField(name, clamp(x,0,W), clamp(y,0,H), mockText, clamp(tw,20,W), clamp(th,10,H), clamp(fs,8,200), ['left','center','right'].includes(align) ? align : 'left');
+  addField(name, clamp(x,0,W), clamp(y,0,H), mockText, clamp(tw,20,W), clamp(fs,8,200), ['left','center','right'].includes(align) ? align : 'left');
 });
 
 // ── Click on image ──
@@ -654,12 +645,10 @@ certImage.addEventListener('click', e => {
   const mockText = prompt('Mock text (optional):', '') || '';
   let tw = parseInt(prompt('Text width (px, 20–' + W + '):', '400'), 10);
   if (isNaN(tw)) tw = 400;
-  let th = parseInt(prompt('Text height (px, 10–' + H + '):', '60'), 10);
-  if (isNaN(th)) th = 60;
   let fs = parseInt(prompt('Font size (px, 8–200):', '32'), 10);
   if (isNaN(fs)) fs = 32;
   const align = prompt('Text alignment (left/center/right):', 'left') || 'left';
-  addField(name, refX, refY, mockText, clamp(tw,20,W), clamp(th,10,H), clamp(fs,8,200), ['left','center','right'].includes(align) ? align : 'left');
+  addField(name, refX, refY, mockText, clamp(tw,20,W), clamp(fs,8,200), ['left','center','right'].includes(align) ? align : 'left');
 });
 
 // ── Mouse move: crosshair + coord display ──
