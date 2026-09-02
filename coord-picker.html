@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Certificate Coordinate Picker</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #111; color: #e0e0e0; min-height: 100vh; }
+
+  .app { display: flex; height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 320px; min-width: 320px;
+    background: #1a1a1a; border-right: 1px solid #2a2a2a;
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .sidebar-header h1 { font-size: 1.1rem; color: #c9a84c; font-weight: 700; letter-spacing: 0.5px; }
+  .sidebar-header p { font-size: 0.75rem; color: #777; margin-top: 4px; }
+
+  .sidebar-section { padding: 16px 20px; border-bottom: 1px solid #2a2a2a; }
+  .sidebar-section h3 { font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+
+  .upload-area {
+    border: 2px dashed #333; border-radius: 8px;
+    padding: 24px 16px; text-align: center;
+    cursor: pointer; transition: all .2s;
+    font-size: 0.8rem; color: #888;
+  }
+  .upload-area:hover { border-color: #c9a84c; color: #c9a84c; }
+  .upload-area input { display: none; }
+  .upload-area .icon { font-size: 1.5rem; margin-bottom: 6px; }
+
+  /* ── Field list ── */
+  .field-list { display: flex; flex-direction: column; gap: 8px; }
+  .field-item {
+    background: #222; border: 1px solid #2a2a2a; border-radius: 6px;
+    padding: 10px 12px; cursor: pointer; transition: all .15s;
+    position: relative;
+  }
+  .field-item:hover { border-color: #444; }
+  .field-item.active { border-color: #c9a84c; background: rgba(201,168,76,0.08); }
+  .field-item .row1 { display: flex; justify-content: space-between; align-items: center; }
+  .field-item .name { font-size: 0.8rem; font-weight: 600; color: #e0e0e0; }
+  .field-item .coord { font-size: 0.7rem; color: #c9a84c; font-family: monospace; }
+  .field-item .desc { font-size: 0.7rem; color: #666; margin-top: 2px; }
+  .field-item .remove {
+    position: absolute; top: 4px; right: 6px;
+    background: none; border: none; color: #555; cursor: pointer;
+    font-size: 0.8rem; line-height: 1;
+  }
+  .field-item .remove:hover { color: #e74c3c; }
+
+  .add-field-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: 1px dashed #333; border-radius: 6px;
+    padding: 10px; color: #666; font-size: 0.8rem; cursor: pointer;
+    justify-content: center; transition: all .2s;
+  }
+  .add-field-btn:hover { border-color: #c9a84c; color: #c9a84c; }
+
+  /* ── Actions ── */
+  .actions { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; }
+  .btn {
+    padding: 10px; border-radius: 6px; border: none;
+    font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 600;
+    cursor: pointer; transition: all .2s;
+  }
+  .btn-primary { background: #c9a84c; color: #111; }
+  .btn-primary:hover { background: #d4b65c; }
+  .btn-secondary { background: #222; color: #aaa; border: 1px solid #333; }
+  .btn-secondary:hover { background: #2a2a2a; }
+
+  .export-area {
+    background: #0d0d0d; border-radius: 6px; padding: 12px;
+    font-family: monospace; font-size: 0.72rem; color: #888;
+    white-space: pre-wrap; word-break: break-all;
+    max-height: 200px; overflow-y: auto;
+    user-select: all;
+  }
+
+  /* ── Canvas area ── */
+  .canvas-area {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #0a0a0a; position: relative; overflow: hidden;
+  }
+  .canvas-area.no-image { cursor: default; }
+
+  .image-container {
+    position: relative; display: inline-block;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.8);
+    line-height: 0;
+  }
+  .image-container img { position: relative; z-index: 1; }
+  .image-container img {
+    max-width: 100%; max-height: 100vh;
+    display: block;
+    user-select: none;
+  }
+
+  /* ── Overlay markers ── */
+  .marker {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    cursor: grab;
+    pointer-events: auto;
+  }
+  .marker:active { cursor: grabbing; }
+  .marker::before {
+    content: ''; display: block;
+    width: 16px; height: 16px;
+    border: 2px solid #c9a84c;
+    border-radius: 50%;
+    background: rgba(201,168,76,0.2);
+    pointer-events: none;
+  }
+  .marker::after {
+    content: ''; position: absolute;
+    top: 50%; left: 50%;
+    width: 40px; height: 1px;
+    background: rgba(201,168,76,0.5);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .marker.active::before {
+    border-color: #fff;
+    background: rgba(255,255,255,0.25);
+    box-shadow: 0 0 12px rgba(201,168,76,0.5);
+  }
+
+  .marker .marker-label {
+    position: absolute; left: 20px; top: 50%;
+    transform: translateY(-50%);
+    background: rgba(17,17,17,0.9); color: #c9a84c;
+    font-size: 0.65rem; font-family: monospace;
+    padding: 3px 8px; border-radius: 4px;
+    white-space: nowrap;
+    border: 1px solid rgba(201,168,76,0.3);
+    pointer-events: none;
+  }
+
+  /* ── Crosshair ── */
+  .crosshair {
+    position: absolute; pointer-events: none; z-index: 20;
+    display: none; width: 100%; height: 100%; top: 0; left: 0;
+    overflow: visible;
+  }
+  .crosshair .hline {
+    position: absolute; height: 1px; width: 4000px;
+    background: rgba(201,168,76,0.25);
+    top: 0; left: -2000px;
+  }
+  .crosshair .vline {
+    position: absolute; width: 1px; height: 4000px;
+    background: rgba(201,168,76,0.25);
+    left: 0; top: -2000px;
+  }
+
+  /* ── Cursor coord tooltip ── */
+  .cursor-coord {
+    position: absolute; bottom: 16px; right: 16px;
+    background: rgba(0,0,0,0.85); color: #c9a84c;
+    font-family: monospace; font-size: 0.75rem;
+    padding: 6px 12px; border-radius: 6px;
+    border: 1px solid #2a2a2a; z-index: 30;
+    display: none;
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center; color: #555;
+  }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state p { font-size: 0.85rem; }
+
+  /* ── Image dims ── */
+  .img-info {
+    font-size: 0.7rem; color: #555; margin-top: 8px;
+    font-family: monospace;
+  }
+
+  /* ── Baseline grid toggle ── */
+  .grid-overlay {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; z-index: 5;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>✦ Coordinate Picker</h1>
+      <p>Click on the certificate to mark fields</p>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="upload-area" id="uploadArea">
+        <div class="icon">⬆</div>
+        <div>Upload certificate background</div>
+        <input type="file" id="fileInput" accept="image/*">
+      </div>
+      <div class="img-info" id="imgInfo"></div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1;">
+      <h3>Placed Fields</h3>
+      <div class="field-list" id="fieldList"></div>
+      <button class="add-field-btn" id="addFieldBtn" disabled>
+        <span>+</span> Add field manually
+      </button>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="exportBtn">Export Coordinates (JSON)</button>
+      <button class="btn btn-secondary" id="clearBtn">Clear All Fields</button>
+      <div class="export-area" id="exportArea">Upload an image and place fields to see coordinates.</div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-area no-image" id="canvasArea">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">🖼</div>
+      <p>Upload a certificate background to start</p>
+    </div>
+
+    <div class="image-container" id="imageContainer" style="display:none;">
+      <img id="certImage" src="" alt="Certificate background">
+      <div class="crosshair" id="crosshair">
+        <div class="hline"></div><div class="vline"></div>
+      </div>
+      <div class="cursor-coord" id="cursorCoord"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const W = 2480; // reference canvas width (px)
+const H = 3508; // reference canvas height (px)
+
+// ── State ──
+let fields = [];
+let activeId = null;
+let imgLoaded = false;
+let scale = 1;
+let imgOffset = { x: 0, y: 0 };
+let imgNaturalW = 0;
+let imgNaturalH = 0;
+
+// ── DOM refs ──
+const $ = id => document.getElementById(id);
+const uploadArea = $('uploadArea');
+const fileInput = $('fileInput');
+const certImage = $('certImage');
+const imageContainer = $('imageContainer');
+const canvasArea = $('canvasArea');
+const emptyState = $('emptyState');
+const fieldList = $('fieldList');
+const exportArea = $('exportArea');
+const exportBtn = $('exportBtn');
+const clearBtn = $('clearBtn');
+const addFieldBtn = $('addFieldBtn');
+const crosshair = $('crosshair');
+const cursorCoord = $('cursorCoord');
+const imgInfo = $('imgInfo');
+
+// ── Helpers ──
+function clamp(v, min, max) { return Math.round(Math.min(max, Math.max(min, v))); }
+
+function pxToRef(pxX, pxY) {
+  // pixel coords relative to image container → ref canvas coords
+  const rect = certImage.getBoundingClientRect();
+  const rx = (pxX - rect.left) / rect.width;
+  const ry = (pxY - rect.top) / rect.height;
+  return { x: clamp(rx * W, 0, W), y: clamp(ry * H, 0, H) };
+}
+
+function refToPx(refX, refY) {
+  const rect = certImage.getBoundingClientRect();
+  return {
+    x: (refX / W) * rect.width,
+    y: (refY / H) * rect.height,
+    w: rect.width,
+    h: rect.height,
+  };
+}
+
+// ── Render markers (draggable) ──
+function renderMarkers() {
+  document.querySelectorAll('.marker').forEach(el => el.remove());
+
+  fields.forEach(f => {
+    const p = refToPx(f.x, f.y);
+    const el = document.createElement('div');
+    el.className = 'marker' + (f.id === activeId ? ' active' : '');
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.dataset.fieldId = f.id;
+
+    const label = document.createElement('div');
+    label.className = 'marker-label';
+    label.textContent = `${f.name} (${f.x}, ${f.y})`;
+    el.appendChild(label);
+
+    el.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      startDrag(e, f.id);
+    });
+
+    imageContainer.appendChild(el);
+  });
+}
+
+// ── Drag logic ──
+let dragState = null;
+
+function startDrag(e, fieldId) {
+  const rect = certImage.getBoundingClientRect();
+  activeId = fieldId;
+  renderFieldList();
+  renderMarkers();
+
+  dragState = { fieldId, imgRect: rect };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragState) return;
+  const { fieldId, imgRect } = dragState;
+  const rx = (e.clientX - imgRect.left) / imgRect.width;
+  const ry = (e.clientY - imgRect.top) / imgRect.height;
+  const nx = clamp(rx * W, 0, W);
+  const ny = clamp(ry * H, 0, H);
+
+  const f = fields.find(f => f.id === fieldId);
+  if (!f) return;
+  f.x = nx;
+  f.y = ny;
+
+  // live update marker position
+  const marker = document.querySelector(`.marker[data-field-id="${fieldId}"]`);
+  if (marker) {
+    const p = refToPx(nx, ny);
+    marker.style.left = p.x + 'px';
+    marker.style.top = p.y + 'px';
+    marker.querySelector('.marker-label').textContent = `${f.name} (${f.x}, ${f.y})`;
+  }
+
+  renderFieldList(); // keep sidebar coords current
+  updateExport();
+}
+
+function endDrag() {
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+  dragState = null;
+}
+
+// ── Recalc image display ──
+function imageLoaded() {
+  imgNaturalW = certImage.naturalWidth;
+  imgNaturalH = certImage.naturalHeight;
+  imgInfo.textContent = `Original: ${imgNaturalW} × ${imgNaturalH}  •  Ref canvas: ${W} × ${H}`;
+  renderMarkers();
+}
+
+// ── Add field ──
+function addField(name, x, y) {
+  const id = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  fields.push({ id, name, x, y });
+  activeId = id;
+  renderFieldList();
+  renderMarkers();
+  updateExport();
+  return id;
+}
+
+function removeField(id) {
+  fields = fields.filter(f => f.id !== id);
+  if (activeId === id) activeId = fields.length ? fields[fields.length-1].id : null;
+  renderFieldList();
+  renderMarkers();
+  updateExport();
+}
+
+function clearFields() {
+  fields = [];
+  activeId = null;
+  renderFieldList();
+  renderMarkers();
+  updateExport();
+}
+
+// ── Field list rendering ──
+function renderFieldList() {
+  if (fields.length === 0) {
+    fieldList.innerHTML = '<div style="color:#555;font-size:0.75rem;padding:8px 0;text-align:center;">No fields placed. Click on the image to add one.</div>';
+    return;
+  }
+  fieldList.innerHTML = fields.map(f => `
+    <div class="field-item ${f.id === activeId ? 'active' : ''}" data-id="${f.id}">
+      <button class="remove" data-remove="${f.id}" title="Remove">✕</button>
+      <div class="row1">
+        <span class="name">${escHtml(f.name)}</span>
+        <span class="coord">${f.x}, ${f.y}</span>
+      </div>
+      <div class="desc">Ref canvas: ${W}×${H}</div>
+    </div>
+  `).join('');
+
+  // click to activate
+  fieldList.querySelectorAll('.field-item').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.classList.contains('remove')) return;
+      activeId = el.dataset.id;
+      renderFieldList();
+      renderMarkers();
+    });
+  });
+  fieldList.querySelectorAll('.remove').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      removeField(el.dataset.remove);
+    });
+  });
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Export ──
+function updateExport() {
+  if (fields.length === 0) {
+    exportArea.textContent = 'No fields placed yet.';
+    return;
+  }
+  const data = {
+    refCanvas: { width: W, height: H },
+    fields: fields.map(f => ({ name: f.name, x: f.x, y: f.y })),
+  };
+  exportArea.textContent = JSON.stringify(data, null, 2);
+}
+exportBtn.addEventListener('click', updateExport);
+
+// ── Clear ──
+clearBtn.addEventListener('click', clearFields);
+
+// ── Upload ──
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = '#c9a84c'; });
+uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = '#333'; });
+uploadArea.addEventListener('drop', e => { e.preventDefault(); uploadArea.style.borderColor = '#333'; if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    certImage.src = e.target.result;
+    certImage.onload = function() {
+      emptyState.style.display = 'none';
+      imageContainer.style.display = 'inline-block';
+      imgLoaded = true;
+      addFieldBtn.disabled = false;
+      imageLoaded();
+    };
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Add manual field ──
+addFieldBtn.addEventListener('click', () => {
+  const name = prompt('Field name (e.g. "Recipient Name"):');
+  if (!name) return;
+  let x = parseInt(prompt('X coordinate (0–' + W + '):'), 10);
+  if (isNaN(x)) x = Math.round(W/2);
+  let y = parseInt(prompt('Y coordinate (0–' + H + '):'), 10);
+  if (isNaN(y)) y = Math.round(H/2);
+  addField(name, clamp(x,0,W), clamp(y,0,H));
+});
+
+// ── Click on image ──
+certImage.addEventListener('click', e => {
+  if (!imgLoaded) return;
+  const rect = certImage.getBoundingClientRect();
+  const rx = (e.clientX - rect.left) / rect.width;
+  const ry = (e.clientY - rect.top) / rect.height;
+  const refX = clamp(rx * W, 0, W);
+  const refY = clamp(ry * H, 0, H);
+
+  const name = prompt('Field name for this location (e.g. "Recipient Name"):', 'Field_' + (fields.length+1));
+  if (!name) return;
+  addField(name, refX, refY);
+});
+
+// ── Mouse move: crosshair + coord display ──
+certImage.addEventListener('mousemove', e => {
+  if (!imgLoaded) return;
+  const rect = certImage.getBoundingClientRect();
+  const rx = (e.clientX - rect.left) / rect.width;
+  const ry = (e.clientY - rect.top) / rect.height;
+  const refX = clamp(rx * W, 0, W);
+  const refY = clamp(ry * H, 0, H);
+
+  const contRect = imageContainer.getBoundingClientRect();
+  crosshair.style.display = 'block';
+  crosshair.style.left = (e.clientX - contRect.left) + 'px';
+  crosshair.style.top = (e.clientY - contRect.top) + 'px';
+
+  cursorCoord.style.display = 'block';
+  cursorCoord.textContent = `x: ${refX}, y: ${refY}`;
+});
+
+certImage.addEventListener('mouseleave', () => {
+  crosshair.style.display = 'none';
+  cursorCoord.style.display = 'none';
+});
+
+// ── Preset default fields as demo ──
+// Will only show if image is loaded — user uploads first.
+</script>
+</body>
+</html>
